@@ -13,6 +13,13 @@ unitRegistry = {
 	"node" : nodeRegistry,
 	"stream" : streamRegistry
 	}
+global commandSwitch
+commandSwitch = {
+	"a":"self.add_unit",
+	"m":"self.modify_unit",
+	"r":"self.remove_unit",
+	"p":"print_all"
+	}
 ###############################################################################################################################################################
 ###############################################################################################################################################################
 class unit():
@@ -33,7 +40,7 @@ class node(unit): #right now these just have mixer functionality it looks like
 ##############################################################################################################################################################
 ################################################################################################################################################################
 class stream(unit):
-	def __init(self,name,flow = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
+	def __init__(self,name,flow = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
 		unit.__init__(self,name)
 		self.t = None
 		self.f = None
@@ -52,8 +59,24 @@ class material():
 #############################################################################################################################################################
 ###############################################################################################################################################################
 class command():
-	def __init__(self):
-		pass
+	def __init__(self,raw):
+		self.raw = raw
+		self.parse_command()
+		self.command_switch()
+
+	def parse_command(self):
+		#commands will be passed like add unit n01 or add unit:s04 or modify unit:n01 and so on
+		#the base commands can be written as 'a' or 'add' for example
+		cmdPos = 0
+		unitPos = self.raw.find(" ",cmdPos + 1)
+		unitNamePos = self.raw.find(" ",unitPos + 1)
+		self.base = self.raw[cmdPos]
+		self.object = self.raw[unitNamePos + 1:]
+		self.get_unit()
+
+	def command_switch(self): #this probably is going to break at some point in the near future.
+		cmd = commandSwitch[self.base]
+		eval(cmd + "()")
 
 	def get_base(self):
                 #returns 1 when a valid command is chosen, returns 0 if invalid command, returns "" if 'quit' command is chosen or if null string is entered
@@ -67,7 +90,7 @@ class command():
 
 	def get_unit(self):
 		#Returns "" if no selection is made, returns 1 for a valid selection, returns 0 if invalid typeOfUnit designation
-		unitString = input("unit name?(ex: n01, s01)\n")
+		unitString = self.object
 		if unitString == "":
 			return ""
 		self.typeOfUnit = unitString[0:1]
@@ -91,23 +114,6 @@ class command():
 				return 1
 			else:
 				return 0
-
-	def get_detail(self): #change this so it only runs once per successful command
-		if self.base == "a":
-			self.add_unit()
-			return 1
-		elif self.base == "m":
-			#need to check that it exists first before calling anything below this.
-			self.modify_unit()
-			return 1
-		elif self.base == "r":
-			return 1
-		elif self.base == "q":
-			return ""
-		elif self.base == "":
-			return ""
-		else:
-			return 0
 
 	def add_unit(self):
 		if self.typeOfUnit == "n":
@@ -134,19 +140,18 @@ class command():
 		commandLog.append(str(self))
 
 	def __str__(self):
-		return self.base + "_" + str(self.unit)
+		return self.base + "_" + str(self.object)
 
 #############################################################################################################################################################
 ###############################################################################################################################################################
 def get_command():
-	currentCommand = command_hash()
-	currentCommand = command()
-
-	get_command_unit_name(currentCommand)
-	get_command_base(currentCommand)
-	get_command_details(currentCommand)
-
-	currentCommand.log_command()
+	commandRaw = input("Input command\n(add, a),(modify,m),(remove,r) followed by \'unit\' then the unit name ex: \'a unit n01\'\n")
+	if commandRaw == "quit" or commandRaw == "q":
+		return 0
+	commandID = command_hash()
+	commandID = command(commandRaw)
+	commandID.log_command()
+	return commandID
 
 def command_hash():
 	hash = "init"
@@ -154,26 +159,6 @@ def command_hash():
 		hash = random.randint(1,9999)
 	commandIndex.append(hash)
 	return hash
-
-def get_command_unit_name(command):
-	done = 0
-	while done != 1:
-		done = command.get_unit()
-		if done == "":
-			return ""
-	return 1
-
-def get_command_base(command):
-        done = 0
-        while done != 1:
-                done = command.get_base()
-                if done == "":
-                    return "" #does this exit the function or just the loop?? I'll find out later I guess
-        return 1
-
-def get_command_details(command):
-        done = 0
-        command.get_detail()
 
 def print_commandLog():
 	for command in commandLog:
@@ -184,11 +169,19 @@ def print_unitRegistry():
 		print(node)
 	for stream in unitRegistry["stream"]:
 		print(stream)
-#############################################################################################################################################################
-def main():
-	get_command()
+
+def print_all():
 	print_commandLog()
 	print_unitRegistry()
+#############################################################################################################################################################
+def main(): #i want to make the get_command a loop or something
+	commandLoop = ""
+	while commandLoop != 0:
+		commandLoop=get_command()
+	print_all()
+	#test = command("modify unit s078978")
+	#print_commandLog()
+	#print_unitRegistry()
 ##############################################################################################################################################################
 main()
 
