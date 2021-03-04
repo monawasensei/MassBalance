@@ -24,7 +24,16 @@ commandSwitch = {
 ###############################################################################################################################################################
 class unit():
 	def __init__(self,name):
-		self.name=name
+		self.name = name
+
+	def delete(self):
+		if self in unitRegistry["node"]:
+			unitRegistry["node"].remove(self)
+		elif self in unitRegistry["stream"]:
+			unitRegistry["stream"].remove(self)
+		else:
+			print("I couldn't find this shit anywhere dawg")
+		del self #kill yourslef :^)
 
 	def __str__(self):
 		return self.name
@@ -117,9 +126,9 @@ class command():
 
 	def add_unit(self):
 		if self.typeOfUnit == "n":
-			self.unit = node(self.unit)
+			self.unit = node(str("node_" + self.unit))
 		elif self.typeOfUnit == "s":
-			self.unit = stream(self.unit)
+			self.unit = stream(str("stream_" + self.unit))
 
 	def modify_unit(self):
 		prompt = input("Which attribute to modify? (\"?\" prints a list of modifiable attributes")
@@ -128,7 +137,8 @@ class command():
 		#WIP
 
 	def remove_unit(self):
-		pass
+		n01.delete()
+		#self.unit.delete()
 
 	def undo_command(self):
 		pass
@@ -153,7 +163,7 @@ def get_command():
 	commandID.log_command()
 	return commandID
 
-def command_hash():
+def command_hash(): #is there any reason for this to be a hash instead of sequential assignment?
 	hash = "init"
 	while hash in commandIndex:
 		hash = random.randint(1,9999)
@@ -178,7 +188,6 @@ def main(): #i want to make the get_command a loop or something
 	commandLoop = ""
 	while commandLoop != 0:
 		commandLoop=get_command()
-	print_all()
 	#test = command("modify unit s078978")
 	#print_commandLog()
 	#print_unitRegistry()
