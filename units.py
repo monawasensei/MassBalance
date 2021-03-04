@@ -233,11 +233,12 @@ class system(node):
 ################################################################################################################################################################
 
 class stream(unit):
-	def __init__(self,name,flow = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
+	def __init__(self,name,flowRate = "unknown", flowType = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
 		unit.__init__(self,name)
 		self.t = None
 		self.f = None
-		self.flow = flow
+		self.flowType = flowType
+		self.flowRate = flowRate
 		self.flowUnits = flowUnits
 		self.temp = temperature
 		self.tempUnits = tempUnits
@@ -261,8 +262,21 @@ class stream(unit):
 		print("\n")
 #############################################################################################################################################################
 ###############################################################################################################################################################
-class material():
-	pass
+class component():
+	def __init__(self,parentStream,name,fractionType = "unknown",fractionValue = "unknown"):
+		self.name = name
+		self.fractionType = fractionType #
+		self.fractionValue = fractionValue #
+		self.get_stream_attr(parentStream)
+
+	def get_stream_attr(self,stream):
+		self.flowType = stream.flowType
+		self.flowRate = stream.flowRate
+		self.flowUnits = stream.flowUnits
+		self.temp = stream.temp
+		self.tempUnits = stream.tempUnits
+		self.pressure = stream.pressure
+		self.pressUnits = stream.pressUnits
 #############################################################################################################################################################
 ###############################################################################################################################################################
 def print_unitRegistry():

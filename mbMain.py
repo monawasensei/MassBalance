@@ -36,11 +36,5 @@ def main():
 	units.make_all_connections()
 
 	sys01 = units.system("overall")
-	for unit in sys01.contents:
-		print(unit.name)
-#	for stream in sys01.i:
-#		print(stream.name)
-#	for stream in sys01.o:
-#		print(stream.name)
 
 main()
