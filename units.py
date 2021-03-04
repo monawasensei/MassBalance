@@ -29,6 +29,11 @@ class unit():
 		allDownstreamUnits = self.get_downstream_units(downstreamUnitList)
 		return allDownstreamUnits
 
+	def get_all_upstream_units(self,upstreamUnitList = ["init"]):
+		allUpstreamUnits = list()
+		allUpstreamUnits = self.get_upstream_units(upstreamUnitList)
+		return allUpstreamUnits
+
 	def get_downstream_units(self,downstreamUnitList):
 		if len(downstreamUnitList) == 0 or downstreamUnitList[0] == "init":
 			#downstreamUnitList[0] = self
@@ -63,6 +68,41 @@ class unit():
 			print("this shouldn't be happening")
 
 		return downstreamUnitList
+
+	def get_upstream_units(self,upstreamUnitList): #hopefully it will be as easy as copying the above...
+		if len(upstreamUnitList) == 0 or upstreamUnitList[0] == "init":
+			#downstreamUnitList[0] = self
+			upstreamUnitList = []
+		else:
+			pass
+
+		index = len(upstreamUnitList)
+
+		if self.typeOfUnit == "node":
+			if len(self.i) != 0:
+				for stream in self.i:
+					if stream not in upstreamUnitList:
+						upstreamUnitList.append(stream)
+					else:
+						continue
+				for subunit in upstreamUnitList[index:]:
+					if subunit.typeOfUnit == "stream":
+						subunit.get_upstream_units(upstreamUnitList)
+					else:
+						continue
+			else:
+				return []
+		elif self.typeOfUnit == "stream":
+			if self.f != None:
+				if self.f not in upstreamUnitList:
+					upstreamUnitList.append(self.f)
+				self.f.get_upstream_units(upstreamUnitList)
+			else:
+				pass
+		else:
+			print("this shouldn't be happening")
+
+		return upstreamUnitList
 
 
 	def __str__(self):
@@ -109,6 +149,89 @@ class node(unit): #right now these just have mixer functionality it looks like
 		print("\n")
 ##############################################################################################################################################################
 ################################################################################################################################################################
+class system(node):
+	def __init__(self,name,i = None,o = None):
+		node.__init__(self,name)
+		self.get_bounds(i,o)
+		self.get_contents()
+		self.typeOfUnit = "system"
+		unitRegistry["node"].remove(self)
+
+	def get_bounds(self,i,o): #need to add handling for if either i OR o are == None
+		if i == None and o == None:
+			#check which streams only stream.f and which ones only have stream.t
+			for stream in unitRegistry["stream"]:
+				if stream.f == None and stream.t != None:
+					self.i.append(stream)
+				elif stream.f != None and stream.t == None:
+					self.o.append(stream)
+				else:
+					continue
+		else:
+			self.i = i
+			self.o = o
+
+	def get_contents(self):
+		forwardContents = list()
+		backwardContents = list()
+		check = int()
+		forwardContents = self.construct_forward_content_list()
+		backwardContents = self.construct_backward_content_list()
+		check = self.compare_content_lists(forwardContents,backwardContents)
+		if check == 0:
+			self.contents = forwardContents
+		else:
+			print("Invalid bounds, the degree of separation is " + str(check))
+
+	def construct_forward_content_list(self):
+		forwardHolding = list()
+		forwardContents = list()
+		for stream in self.i:
+			forwardHolding = stream.get_all_downstream_units()
+			for entry in forwardHolding:
+				if entry not in forwardContents:
+					forwardContents.append(entry)
+		for stream in self.o:
+			forwardHolding = stream.get_all_downstream_units()
+			for entry in forwardHolding:
+				if entry in forwardContents:
+					forwardContents.remove(entry)
+			if stream in forwardContents:
+				forwardContents.remove(stream)
+		return forwardContents
+
+	def construct_backward_content_list(self):
+		backwardContents = list()
+		backwardHolding = list()
+		for stream in self.o:
+			backwardHolding = stream.get_all_upstream_units()
+			for entry in backwardHolding:
+				if entry not in backwardContents:
+					backwardContents.append(entry)
+		for stream in self.i:
+			backwardHolding = stream.get_all_upstream_units()
+			for entry in backwardHolding:
+				if entry in backwardContents:
+					backwardContents.remove(entry)
+			if stream in backwardContents:
+				backwardContents.remove(stream)
+		return backwardContents
+
+	def compare_content_lists(self,forward,backward):
+		checkedList = list()
+		degreeOfSeparation = 0
+		for entry in forward:
+			if entry not in backward and entry not in checkedList:
+				degreeOfSeparation += 1
+			checkedList.append(entry)
+		for entry in backward:
+			if entry not in forward and entry not in checkedList:
+				degreeOfSeparation += 1
+			checkedList.append(entry)
+		return degreeOfSeparation
+##############################################################################################################################################################
+################################################################################################################################################################
+
 class stream(unit):
 	def __init__(self,name,flow = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
 		unit.__init__(self,name)
