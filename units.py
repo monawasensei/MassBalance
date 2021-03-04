@@ -33,8 +33,32 @@ class node(unit): #right now these just have mixer functionality it looks like
 		unit.__init__(self,name)
 		self.i = list()
 		self.o = list()
-
 		unitRegistry["node"].append(self)
+
+	def make_connections(self):
+		for stream in unitRegistry["stream"]:
+			if stream.t == self and stream not in self.i:
+				self.i.append(stream)
+			elif stream.f == self and stream not in self.o:
+				self.o.append(stream)
+			else:
+				continue
+
+	def print_connections(self):
+		if len(self.i) != 0:
+			print(self.name + " Incoming streams:")
+			for stream in self.i:
+				print(stream.name)
+		else:
+			print("No incoming streams")
+
+		if len(self.o) != 0:
+			print("\n\n" + self.name + " Outgoing streams:")
+			for stream in self.o:
+				print(stream.name)
+		else:
+			print("no outgoing streams")
+		print("\n")
 ##############################################################################################################################################################
 ################################################################################################################################################################
 class stream(unit):
@@ -48,8 +72,21 @@ class stream(unit):
 		self.tempUnits = tempUnits
 		self.pressure = pressure
 		self.pressUnits = pressUnits
-
 		unitRegistry["stream"].append(self)
+
+	def make_connections(self):
+		for node in unitRegistry["node"]:
+			if self in node.i:
+				self.t = node
+			elif self in node.o:
+				self.f = node
+			else:
+				continue
+
+	def print_connections(self):
+		print(self.name + " going to " + str(self.t))
+		print(self.name + " coming from " + str(self.f))
+		print("\n")
 #############################################################################################################################################################
 ###############################################################################################################################################################
 class material():
@@ -64,9 +101,15 @@ def print_unitRegistry():
 
 def print_all():
 	print_unitRegistry()
-#############################################################################################################################################################
-def main(): #i want to make the get_command a loop or something
-	pass
-##############################################################################################################################################################
-main()
 
+def make_all_connections():
+	for node in unitRegistry["node"]:
+		node.make_connections()
+	for stream in unitRegistry["stream"]:
+		stream.make_connections()
+def print_all_connections():
+
+	for node in unitRegistry["node"]:
+		node.print_connections()
+	for stream in unitRegistry["stream"]:
+		stream.print_connections()

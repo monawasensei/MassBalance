@@ -192,5 +192,4 @@ def main(): #i want to make the get_command a loop or something
 	#print_commandLog()
 	#print_unitRegistry()
 ##############################################################################################################################################################
-main()
 
