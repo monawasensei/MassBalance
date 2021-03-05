@@ -12,8 +12,15 @@ unitRegistry = {
 ###############################################################################################################################################################
 ###############################################################################################################################################################
 class unit():
-	def __init__(self,name):
+	def __init__(self,name,flowRate = "unknown", flowType = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
 		self.name = name
+		self.flowType = flowType
+		self.flowRate = flowRate
+		self.flowUnits = flowUnits
+		self.temp = temperature
+		self.tempUnits = tempUnits
+		self.pressure = pressure
+		self.pressUnits = pressUnits
 
 	def delete(self):
 		if self in unitRegistry["node"]:
@@ -22,7 +29,7 @@ class unit():
 			unitRegistry["stream"].remove(self)
 		else:
 			print("I couldn't find this shit anywhere dawg")
-		del self #kill yourslef :^)
+		del self
 
 	def get_all_downstream_units(self,downstreamUnitList = ["init"]):
 		allDownstreamUnits = list()
@@ -104,12 +111,31 @@ class unit():
 
 		return upstreamUnitList
 
+	def specify_component_identities(self,componentList):
+		self.componentIdentities = componentList
+	def specify_component_fractions(self,componentList = [], componentFraction):
+		if len(componentList) == 0:
+			if len(self.componentIdentities) == 0:
+				return 0
+			else:
+				componentList = self.componentIdentities
+		if self.check_componentList_and_values(componentList,componentFraction) != 1:
+			return 0
+	def specify_component_flow_rates(self,componentList = [],componentFlowRate):
+		pass
+
+	def check_componentList_and_values(self,componentList,values):
+		if len(componentList) != len(values):
+			return 0
+		else:
+			return 1
+
 
 	def __str__(self):
 		return self.name
 ################################################################################################################################################################
 ###############################################################################################################################################################
-class node(unit): #right now these just have mixer functionality it looks like
+class node(unit):
 	def __init__(self,name):
 		unit.__init__(self,name)
 		self.i = list()
@@ -149,11 +175,19 @@ class node(unit): #right now these just have mixer functionality it looks like
 		print("\n")
 ##############################################################################################################################################################
 ################################################################################################################################################################
+class mixer(node):
+	def __init__(self,name):
+		node.__init__(self,name)
+
+##############################################################################################################################################################
+################################################################################################################################################################
+
 class system(node):
 	def __init__(self,name,i = None,o = None):
 		node.__init__(self,name)
 		self.get_bounds(i,o)
 		self.get_contents()
+		self.get_flow_in_out()
 		self.typeOfUnit = "system"
 		unitRegistry["node"].remove(self)
 
@@ -229,21 +263,56 @@ class system(node):
 				degreeOfSeparation += 1
 			checkedList.append(entry)
 		return degreeOfSeparation
+
+	def force_overall_balance(self,iterand,interval,lowerBound,upperBound,tolerance):
+		if self.numberOfUnknownFlowRates >= 2:
+			print("It is not recommended to use this iterative strategy with more than one unknown")
+			return 0
+		iterand = lowerBound
+		sqrdDiff = self.calculate_sqrdDiff()
+		overFlow = 0
+		overFlowLimit = 100000
+		while sqrdDiff > tolerance and iterand < upperBound and overFlow < overFlowLimit:
+			iterand += interval
+			sqrdDiff = self.calculate_sqrdDiff()
+			overFlow += 1
+		if sqrdDiff <= tolerance:
+			print("success")
+		elif iterand >= upperBound:
+			print("iterand exceeded the upperbound")
+		elif overFlow >= overFlowLimit:
+			print("over flow limit exceeded")
+		else:
+			return 0
+
+	def calculate_sqrdDiff(self):
+		self.get_flow_in_out()
+		return abs(pow(self.flowIn,2)-pow(self.flowOut,2))
+
+	def get_flow_in_out(self,guess = 0):
+		errorCount = 0
+		i = 0
+		o = 0
+		for stream in self.i:
+			if stream.flowRate == "unknown":
+				stream.flowRate = guess
+				errorCount += 1
+			i += stream.flowRate
+		for stream in self.o:
+			if stream.flowRate == "unknown":
+				stream.flowRate = guess
+				errorCount += 1
+			o += stream.flowRate
+		self.flowIn = i
+		self.flowOut = o
+		self.numberOfUnknownFlowRates = errorCount
 ##############################################################################################################################################################
 ################################################################################################################################################################
-
 class stream(unit):
-	def __init__(self,name,flowRate = "unknown", flowType = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
+	def __init__(self,name):
 		unit.__init__(self,name)
 		self.t = None
 		self.f = None
-		self.flowType = flowType
-		self.flowRate = flowRate
-		self.flowUnits = flowUnits
-		self.temp = temperature
-		self.tempUnits = tempUnits
-		self.pressure = pressure
-		self.pressUnits = pressUnits
 		self.typeOfUnit = "stream"
 		unitRegistry["stream"].append(self)
 
@@ -262,21 +331,26 @@ class stream(unit):
 		print("\n")
 #############################################################################################################################################################
 ###############################################################################################################################################################
-class component():
-	def __init__(self,parentStream,name,fractionType = "unknown",fractionValue = "unknown"):
+class material(): #will define a material and it's typical physical/chemical properties
+	def __init__(self,name):
 		self.name = name
+#############################################################################################################################################################
+###############################################################################################################################################################
+class component(material): #will be a specific representation of a material per unit
+	def __init__(self,parentUnit,name,fractionType = "unknown",fractionValue = "unknown"):
+		material.__init__(self,name)
 		self.fractionType = fractionType #
 		self.fractionValue = fractionValue #
-		self.get_stream_attr(parentStream)
+		self.get_unit_attr(parentUnit)
 
-	def get_stream_attr(self,stream):
-		self.flowType = stream.flowType
-		self.flowRate = stream.flowRate
-		self.flowUnits = stream.flowUnits
-		self.temp = stream.temp
-		self.tempUnits = stream.tempUnits
-		self.pressure = stream.pressure
-		self.pressUnits = stream.pressUnits
+	def get_stream_attr(self,unit):
+		self.flowType = unit.flowType
+		self.flowRate = unit.flowRate
+		self.flowUnits = unit.flowUnits
+		self.temp = unit.temp
+		self.tempUnits = unit.tempUnits
+		self.pressure = unit.pressure
+		self.pressUnits = unit.pressUnits
 #############################################################################################################################################################
 ###############################################################################################################################################################
 def print_unitRegistry():
@@ -312,3 +386,6 @@ def detect_unconnected_units():
 		return 0,unitList
 	else:
 		return 1,unitList
+
+def make_bulk_units(unit,number):
+	pass
