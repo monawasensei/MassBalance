@@ -9,11 +9,14 @@ unitRegistry = {
 	"node" : nodeRegistry,
 	"stream" : streamRegistry
 	}
+global materialRegistry
+materialRegistry = list()
 ###############################################################################################################################################################
 ###############################################################################################################################################################
 class unit():
-	def __init__(self,name,flowRate = "unknown", flowType = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
+	def __init__(self,name,flowRate = None, flowType = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
 		self.name = name
+		self.specify_component_identities()
 		self.flowType = flowType
 		self.flowRate = flowRate
 		self.flowUnits = flowUnits
@@ -31,15 +34,15 @@ class unit():
 			print("I couldn't find this shit anywhere dawg")
 		del self
 
-	def get_all_downstream_units(self,downstreamUnitList = ["init"]):
-		allDownstreamUnits = list()
-		allDownstreamUnits = self.get_downstream_units(downstreamUnitList)
-		return allDownstreamUnits
+	def get_all_downstream_units(self, downstreamUnitList=None):
+		if downstreamUnitList is None:
+			downstreamUnitList = []
+		return self.get_downstream_units(downstreamUnitList)
 
-	def get_all_upstream_units(self,upstreamUnitList = ["init"]):
-		allUpstreamUnits = list()
-		allUpstreamUnits = self.get_upstream_units(upstreamUnitList)
-		return allUpstreamUnits
+	def get_all_upstream_units(self, upstreamUnitList=None):
+		if upstreamUnitList is None:
+			upstreamUnitList = []
+		return self.get_upstream_units(upstreamUnitList)
 
 	def get_downstream_units(self,downstreamUnitList):
 		if len(downstreamUnitList) == 0 or downstreamUnitList[0] == "init":
@@ -111,18 +114,44 @@ class unit():
 
 		return upstreamUnitList
 
-	def specify_component_identities(self,componentList):
-		self.componentIdentities = componentList
-	def specify_component_fractions(self,componentList = [], componentFraction):
-		if len(componentList) == 0:
-			if len(self.componentIdentities) == 0:
-				return 0
-			else:
-				componentList = self.componentIdentities
-		if self.check_componentList_and_values(componentList,componentFraction) != 1:
+	def specify_component_identities(self):
+		if len(materialRegistry) == 0:
+			print("no materials specified for system")
 			return 0
-	def specify_component_flow_rates(self,componentList = [],componentFlowRate):
-		pass
+		self.componentIdentities = list()
+		for material in materialRegistry:
+			newComponent = component(self,material,self.name + "_" + material.name)
+			self.componentIdentities.append(newComponent)
+
+	def specify_component_fractions(self,componentNameList = [], componentFraction, fractionType = "mass"):
+		componentList = list() #initializing componentList
+		if len(componentNameList) == 0: #if no argument is returned for componentNameList, it is assumed that fractions are being specified for each component material in the system
+			componentList = self.componentIdentities
+		else:
+			for name in componentNameList:
+				component = self.get_component_by_material_name(name) #get's components by their names that have been passed in componentNameList
+				componentList.append(component)
+		if self.check_componentList_and_values(componentList,componentFraction) != 1: #checks to ensure that both arg lists are the same length
+			return 0
+		for component in componentList: #now assigning fractions to specific components
+			component.fractionType = fractionType #can be molar or mass fraction type
+			component.fractionValue = componentFraction[componentList.index(component)]
+
+	def specify_component_flow_rates(self,componentNameList = [],componentFlowRate,flowType = None):
+		if flowType == None:
+			flowType = self.flowType #self.flowType is "mass" by default
+		componentList = list()
+		if len(componentNameList) == 0:
+			componentList = self.componentIdentities
+		else:
+			for name in componentNameList:
+				component = self.get_component_by_material_name(name)
+				componentList.append(component)
+		if self.check_components_and_values(componentList,componentFlowRate) != 1:
+			return 0
+		for component in componentList:
+			component.flowType = flowType
+			component.flowRate = componentFlowRate[componentList.index(component)]
 
 	def check_componentList_and_values(self,componentList,values):
 		if len(componentList) != len(values):
@@ -130,6 +159,11 @@ class unit():
 		else:
 			return 1
 
+	def get_component_by_material_name(self,materialName):
+		for component in self.componentIdentities:
+			if component.name == materialName:
+				return component
+		return 0
 
 	def __str__(self):
 		return self.name
@@ -173,6 +207,13 @@ class node(unit):
 		else:
 			print("no outgoing streams")
 		print("\n")
+
+	def get_flow_in_out(self): #this *may* exhibit recursion issues since it calls the child method of the same name. I don' think it will but you can never be too sure
+		tempSystem = system("temp",self.i,self.o)
+		self.flowIn = tempSystem.flowIn
+		self.flowOut = tempSystem.flowOut
+		self.numberOfUnkownFlowRates = tempSystem.numberOfUnkownFlowRates
+		del tempSystem
 ##############################################################################################################################################################
 ################################################################################################################################################################
 class mixer(node):
@@ -332,20 +373,24 @@ class stream(unit):
 #############################################################################################################################################################
 ###############################################################################################################################################################
 class material(): #will define a material and it's typical physical/chemical properties
-	def __init__(self,name):
+	def __init__(self,name,mw):
 		self.name = name
+		self.mw = mw
+		materialRegistry.append(self)
 #############################################################################################################################################################
 ###############################################################################################################################################################
-class component(material): #will be a specific representation of a material per unit
-	def __init__(self,parentUnit,name,fractionType = "unknown",fractionValue = "unknown"):
-		material.__init__(self,name)
-		self.fractionType = fractionType #
-		self.fractionValue = fractionValue #
+class component(): #will be a specific representation of a material per unit
+	def __init__(self,parentUnit,material,name):
+		self.name = name
+		self.material = material
+		materialRegistry.remove(self)
+		self.fractionType = None
+		self.fractionValue = None
+		self.flowRate = None
 		self.get_unit_attr(parentUnit)
 
 	def get_stream_attr(self,unit):
 		self.flowType = unit.flowType
-		self.flowRate = unit.flowRate
 		self.flowUnits = unit.flowUnits
 		self.temp = unit.temp
 		self.tempUnits = unit.tempUnits
