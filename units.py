@@ -13,8 +13,9 @@ global materialRegistry
 materialRegistry = list()
 ###############################################################################################################################################################
 ###############################################################################################################################################################
-class unit():
+class unit:
 	def __init__(self,name,flowRate = None, flowType = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
+		self.componentIdentities = list()
 		self.name = name
 		self.specify_component_identities()
 		self.flowType = flowType
@@ -55,9 +56,9 @@ class unit():
 
 		if self.typeOfUnit == "node":
 			if len(self.o) != 0:
-				for stream in self.o:
-					if stream not in downstreamUnitList:
-						downstreamUnitList.append(stream)
+				for streamUnit in self.o:
+					if streamUnit not in downstreamUnitList:
+						downstreamUnitList.append(streamUnit)
 					else:
 						continue
 				for subunit in downstreamUnitList[index:]:
@@ -68,7 +69,7 @@ class unit():
 			else:
 				return []
 		elif self.typeOfUnit == "stream":
-			if self.t != None:
+			if self.t is not None:
 				if self.t not in downstreamUnitList:
 					downstreamUnitList.append(self.t)
 				self.t.get_downstream_units(downstreamUnitList)
@@ -90,9 +91,9 @@ class unit():
 
 		if self.typeOfUnit == "node":
 			if len(self.i) != 0:
-				for stream in self.i:
-					if stream not in upstreamUnitList:
-						upstreamUnitList.append(stream)
+				for streamUnit in self.i:
+					if streamUnit not in upstreamUnitList:
+						upstreamUnitList.append(streamUnit)
 					else:
 						continue
 				for subunit in upstreamUnitList[index:]:
@@ -103,7 +104,7 @@ class unit():
 			else:
 				return []
 		elif self.typeOfUnit == "stream":
-			if self.f != None:
+			if self.f is not None:
 				if self.f not in upstreamUnitList:
 					upstreamUnitList.append(self.f)
 				self.f.get_upstream_units(upstreamUnitList)
@@ -118,51 +119,51 @@ class unit():
 		if len(materialRegistry) == 0:
 			print("no materials specified for system")
 			return 0
-		self.componentIdentities = list()
-		for material in materialRegistry:
-			newComponent = component(self,material,self.name + "_" + material.name)
+		for materialObject in materialRegistry:
+			newComponent = component(self, materialObject, self.name + "_" + materialObject.name)
 			self.componentIdentities.append(newComponent)
 
-	def specify_component_fractions(self,componentNameList = [], componentFraction, fractionType = "mass"):
+	def specify_component_fractions(self, componentNameList, fractionType, componentFraction):
 		componentList = list() #initializing componentList
 		if len(componentNameList) == 0: #if no argument is returned for componentNameList, it is assumed that fractions are being specified for each component material in the system
 			componentList = self.componentIdentities
 		else:
 			for name in componentNameList:
-				component = self.get_component_by_material_name(name) #get's components by their names that have been passed in componentNameList
-				componentList.append(component)
+				componentObject = self.get_component_by_material_name(name) #get's components by their names that have been passed in componentNameList
+				componentList.append(componentObject)
 		if self.check_componentList_and_values(componentList,componentFraction) != 1: #checks to ensure that both arg lists are the same length
 			return 0
-		for component in componentList: #now assigning fractions to specific components
-			component.fractionType = fractionType #can be molar or mass fraction type
-			component.fractionValue = componentFraction[componentList.index(component)]
+		for componentObject in componentList: #now assigning fractions to specific components
+			componentObject.fractionType = fractionType #can be molar or mass fraction type
+			componentObject.fractionValue = componentFraction[componentList.index(componentObject)]
 
-	def specify_component_flow_rates(self,componentNameList = [],componentFlowRate,flowType = None):
-		if flowType == None:
+	def specify_component_flow_rates(self,componentNameList,flowType,componentFlowRate):
+		if flowType is None:
 			flowType = self.flowType #self.flowType is "mass" by default
 		componentList = list()
 		if len(componentNameList) == 0:
 			componentList = self.componentIdentities
 		else:
 			for name in componentNameList:
-				component = self.get_component_by_material_name(name)
-				componentList.append(component)
+				componentObject = self.get_component_by_material_name(name)
+				componentList.append(componentObject)
 		if self.check_components_and_values(componentList,componentFlowRate) != 1:
 			return 0
-		for component in componentList:
-			component.flowType = flowType
-			component.flowRate = componentFlowRate[componentList.index(component)]
+		for componentObject in componentList:
+			componentObject.flowType = flowType
+			componentObject.flowRate = componentFlowRate[componentList.index(componentObject)]
 
-	def check_componentList_and_values(self,componentList,values):
+	@staticmethod
+	def check_componentList_and_values(componentList, values):
 		if len(componentList) != len(values):
 			return 0
 		else:
 			return 1
 
 	def get_component_by_material_name(self,materialName):
-		for component in self.componentIdentities:
-			if component.name == materialName:
-				return component
+		for componentObject in self.componentIdentities:
+			if componentObject.name == materialName:
+				return componentObject
 		return 0
 
 	def __str__(self):
@@ -172,38 +173,41 @@ class unit():
 class node(unit):
 	def __init__(self,name):
 		unit.__init__(self,name)
+		self.flowIn = int()
+		self.flowOut = int()
+		self.numberOfUnknownFlowRates = int()
 		self.i = list()
 		self.o = list()
 		self.typeOfUnit = "node"
 		unitRegistry["node"].append(self)
 
-	def specify_connections(self,i=list(),o=list()):
-		for stream in i:
-			self.i.append(stream)
-		for stream in o:
-			self.o.append(stream)
+	def specify_connections(self,i,o):
+		for streamUnit in i:
+			self.i.append(streamUnit)
+		for streamUnit in o:
+			self.o.append(streamUnit)
 
 	def make_connections(self):
-		for stream in unitRegistry["stream"]:
-			if stream.t == self and stream not in self.i:
-				self.i.append(stream)
-			elif stream.f == self and stream not in self.o:
-				self.o.append(stream)
+		for streamUnit in unitRegistry["stream"]:
+			if streamUnit.t == self and streamUnit not in self.i:
+				self.i.append(streamUnit)
+			elif streamUnit.f == self and streamUnit not in self.o:
+				self.o.append(streamUnit)
 			else:
 				continue
 
 	def print_connections(self):
 		if len(self.i) != 0:
 			print(self.name + " Incoming streams:")
-			for stream in self.i:
-				print(stream.name)
+			for streamUnit in self.i:
+				print(streamUnit.name)
 		else:
 			print("No incoming streams")
 
 		if len(self.o) != 0:
 			print("\n\n" + self.name + " Outgoing streams:")
-			for stream in self.o:
-				print(stream.name)
+			for streamUnit in self.o:
+				print(streamUnit.name)
 		else:
 			print("no outgoing streams")
 		print("\n")
@@ -212,7 +216,7 @@ class node(unit):
 		tempSystem = system("temp",self.i,self.o)
 		self.flowIn = tempSystem.flowIn
 		self.flowOut = tempSystem.flowOut
-		self.numberOfUnkownFlowRates = tempSystem.numberOfUnkownFlowRates
+		self.numberOfUnknownFlowRates = tempSystem.numberOfUnknownFlowRates
 		del tempSystem
 ##############################################################################################################################################################
 ################################################################################################################################################################
@@ -226,6 +230,8 @@ class mixer(node):
 class system(node):
 	def __init__(self,name,i = None,o = None):
 		node.__init__(self,name)
+		self.numberOfUnknownFlowRates = int()
+		self.contents = list()
 		self.get_bounds(i,o)
 		self.get_contents()
 		self.get_flow_in_out()
@@ -233,13 +239,13 @@ class system(node):
 		unitRegistry["node"].remove(self)
 
 	def get_bounds(self,i,o): #need to add handling for if either i OR o are == None
-		if i == None and o == None:
+		if i is None and o is None:
 			#check which streams only stream.f and which ones only have stream.t
-			for stream in unitRegistry["stream"]:
-				if stream.f == None and stream.t != None:
-					self.i.append(stream)
-				elif stream.f != None and stream.t == None:
-					self.o.append(stream)
+			for streamObject in unitRegistry["stream"]:
+				if streamObject.f is None and streamObject.t is not None:
+					self.i.append(streamObject)
+				elif streamObject.f is not None and streamObject.t is None:
+					self.o.append(streamObject)
 				else:
 					continue
 		else:
@@ -247,9 +253,6 @@ class system(node):
 			self.o = o
 
 	def get_contents(self):
-		forwardContents = list()
-		backwardContents = list()
-		check = int()
 		forwardContents = self.construct_forward_content_list()
 		backwardContents = self.construct_backward_content_list()
 		check = self.compare_content_lists(forwardContents,backwardContents)
@@ -259,40 +262,39 @@ class system(node):
 			print("Invalid bounds, the degree of separation is " + str(check))
 
 	def construct_forward_content_list(self):
-		forwardHolding = list()
 		forwardContents = list()
-		for stream in self.i:
-			forwardHolding = stream.get_all_downstream_units()
+		for streamObject in self.i:
+			forwardHolding = streamObject.get_all_downstream_units()
 			for entry in forwardHolding:
 				if entry not in forwardContents:
 					forwardContents.append(entry)
-		for stream in self.o:
-			forwardHolding = stream.get_all_downstream_units()
+		for streamObject in self.o:
+			forwardHolding = streamObject.get_all_downstream_units()
 			for entry in forwardHolding:
 				if entry in forwardContents:
 					forwardContents.remove(entry)
-			if stream in forwardContents:
-				forwardContents.remove(stream)
+			if streamObject in forwardContents:
+				forwardContents.remove(streamObject)
 		return forwardContents
 
 	def construct_backward_content_list(self):
 		backwardContents = list()
-		backwardHolding = list()
-		for stream in self.o:
-			backwardHolding = stream.get_all_upstream_units()
+		for streamObject in self.o:
+			backwardHolding = streamObject.get_all_upstream_units()
 			for entry in backwardHolding:
 				if entry not in backwardContents:
 					backwardContents.append(entry)
-		for stream in self.i:
-			backwardHolding = stream.get_all_upstream_units()
+		for streamObject in self.i:
+			backwardHolding = streamObject.get_all_upstream_units()
 			for entry in backwardHolding:
 				if entry in backwardContents:
 					backwardContents.remove(entry)
-			if stream in backwardContents:
-				backwardContents.remove(stream)
+			if streamObject in backwardContents:
+				backwardContents.remove(streamObject)
 		return backwardContents
 
-	def compare_content_lists(self,forward,backward):
+	@staticmethod
+	def compare_content_lists(forward, backward):
 		checkedList = list()
 		degreeOfSeparation = 0
 		for entry in forward:
@@ -334,16 +336,16 @@ class system(node):
 		errorCount = 0
 		i = 0
 		o = 0
-		for stream in self.i:
-			if stream.flowRate == "unknown":
-				stream.flowRate = guess
+		for streamObject in self.i:
+			if streamObject.flowRate == "unknown":
+				streamObject.flowRate = guess
 				errorCount += 1
-			i += stream.flowRate
-		for stream in self.o:
-			if stream.flowRate == "unknown":
-				stream.flowRate = guess
+			i += streamObject.flowRate
+		for streamObject in self.o:
+			if streamObject.flowRate == "unknown":
+				streamObject.flowRate = guess
 				errorCount += 1
-			o += stream.flowRate
+			o += streamObject.flowRate
 		self.flowIn = i
 		self.flowOut = o
 		self.numberOfUnknownFlowRates = errorCount
@@ -358,11 +360,11 @@ class stream(unit):
 		unitRegistry["stream"].append(self)
 
 	def make_connections(self):
-		for node in unitRegistry["node"]:
-			if self in node.i:
-				self.t = node
-			elif self in node.o:
-				self.f = node
+		for nodeObject in unitRegistry["node"]:
+			if self in nodeObject.i:
+				self.t = nodeObject
+			elif self in nodeObject.o:
+				self.f = nodeObject
 			else:
 				continue
 
@@ -372,65 +374,77 @@ class stream(unit):
 		print("\n")
 #############################################################################################################################################################
 ###############################################################################################################################################################
-class material(): #will define a material and it's typical physical/chemical properties
+class material: #will define a material and it's typical physical/chemical properties
 	def __init__(self,name,mw):
 		self.name = name
 		self.mw = mw
 		materialRegistry.append(self)
 #############################################################################################################################################################
 ###############################################################################################################################################################
-class component(): #will be a specific representation of a material per unit
-	def __init__(self,parentUnit,material,name):
+class component: #will be a specific representation of a material per unit
+	def __init__(self, parentUnit, materialObject, name):
 		self.name = name
-		self.material = material
+
+		self.flowType = str()
+		self.flowUnits = str()
+		self.temp = float()
+		self.tempUnits = str()
+		self.pressure = float()
+		self.pressUnits = str()
+
+		self.material = materialObject
 		materialRegistry.remove(self)
 		self.fractionType = None
 		self.fractionValue = None
 		self.flowRate = None
 		self.get_unit_attr(parentUnit)
 
-	def get_stream_attr(self,unit):
-		self.flowType = unit.flowType
-		self.flowUnits = unit.flowUnits
-		self.temp = unit.temp
-		self.tempUnits = unit.tempUnits
-		self.pressure = unit.pressure
-		self.pressUnits = unit.pressUnits
+	def get_unit_attr(self, parentUnit):
+		"""
+			How does a docstring work??
+		:type parentUnit: object
+		"""
+		self.flowType = parentUnit.flowType
+		self.flowUnits = parentUnit.flowUnits
+		self.temp = parentUnit.temp
+		self.tempUnits = parentUnit.tempUnits
+		self.pressure = parentUnit.pressure
+		self.pressUnits = parentUnit.pressUnits
 #############################################################################################################################################################
 ###############################################################################################################################################################
 def print_unitRegistry():
-	for node in unitRegistry["node"]:
-		print(node)
-	for stream in unitRegistry["stream"]:
-		print(stream)
+	for nodeObject in unitRegistry["node"]:
+		print(nodeObject)
+	for streamObject in unitRegistry["stream"]:
+		print(streamObject)
 
 def print_all():
 	print_unitRegistry()
 
 def make_all_connections():
-	for node in unitRegistry["node"]:
-		node.make_connections()
-	for stream in unitRegistry["stream"]:
-		stream.make_connections()
+	for nodeObject in unitRegistry["node"]:
+		nodeObject.make_connections()
+	for streamObject in unitRegistry["stream"]:
+		streamObject.make_connections()
 
 def print_all_connections():
-	for node in unitRegistry["node"]:
-		node.print_connections()
-	for stream in unitRegistry["stream"]:
-		stream.print_connections()
+	for nodeObject in unitRegistry["node"]:
+		nodeObject.print_connections()
+	for streamObject in unitRegistry["stream"]:
+		streamObject.print_connections()
 
 def detect_unconnected_units():
 	unitList = list()
-	for node in unitRegistry["node"]:
-		if len(node.i) == 0 or len(node.o) == 0:
-			unitList.append(node)
-	for stream in unitRegistry["stream"]:
-		if stream.t == None and stream.f == None:
-			unitList.append(stream)
+	for nodeObject in unitRegistry["node"]:
+		if len(nodeObject.i) == 0 or len(nodeObject.o) == 0:
+			unitList.append(nodeObject)
+	for streamObject in unitRegistry["stream"]:
+		if streamObject.t is None and streamObject.f is None:
+			unitList.append(streamObject)
 	if len(unitList) == 0:
 		return 0,unitList
 	else:
 		return 1,unitList
 
-def make_bulk_units(unit,number):
+def make_bulk_units(unitObjects, number):
 	pass

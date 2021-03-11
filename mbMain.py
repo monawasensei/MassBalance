@@ -5,7 +5,7 @@ def main():
 	n01 = units.node("node_01")
 	n02 = units.node("node_02")
 	n02a = units.node("node_02a")
-	n03 = units.mixer("mixer_01")
+	n03 = units.node("mixer_01")
 	n04 = units.node("node_04")
 	n05 = units.node("node_05")
 	n06 = units.node("node_06")
@@ -14,8 +14,8 @@ def main():
 	s02 = units.stream("stream_02")
 	s03 = units.stream("stream_03")
 	s03a = units.stream("stream_03a")
-	s04 = units.stream("stream_04",400)
-	s04a = units.stream("stream_04a",600)
+	s04 = units.stream("stream_04")
+	s04a = units.stream("stream_04a")
 	s05 = units.stream("stream_05")
 	s06 = units.stream("stream_06")
 	s07 = units.stream("stream_07")
@@ -35,10 +35,10 @@ def main():
 
 	units.make_all_connections()
 
-	mixerSys = units.system("mixer",[s04,s04a],[s05])
-	print(mixerSys.i)
-	print(mixerSys.o)
-	print(mixerSys.contents)
+	#mixerSys = units.system("mixer",[s04,s04a],[s05])
+	# print(mixerSys.i)
+	# print(mixerSys.o)
+	# print(mixerSys.contents)
 
 def testMain():
 	n1 = units.node("n1")
