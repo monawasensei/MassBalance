@@ -16,8 +16,9 @@ materialRegistry = list()
 class unit:
 	def __init__(self,name,flowRate = None, flowType = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
 		self.componentIdentities = list()
+		self.typeOfUnit = "base" #should be overwritten by any other child class
+		self.subTypeOfUnit = None
 		self.name = name
-		self.specify_component_identities()
 		self.flowType = flowType
 		self.flowRate = flowRate
 		self.flowUnits = flowUnits
@@ -25,6 +26,7 @@ class unit:
 		self.tempUnits = tempUnits
 		self.pressure = pressure
 		self.pressUnits = pressUnits
+		self.specify_component_identities()
 
 	def delete(self):
 		if self in unitRegistry["node"]:
@@ -147,7 +149,7 @@ class unit:
 			for name in componentNameList:
 				componentObject = self.get_component_by_material_name(name)
 				componentList.append(componentObject)
-		if self.check_components_and_values(componentList,componentFlowRate) != 1:
+		if self.check_componentList_and_values(componentList,componentFlowRate) != 1:
 			return 0
 		for componentObject in componentList:
 			componentObject.flowType = flowType
@@ -160,11 +162,14 @@ class unit:
 		else:
 			return 1
 
-	def get_component_by_material_name(self,materialName):
+	def get_component_by_material_name(self,materialName): #this check is utterly retarded but I don't want to think of a better way for now
 		for componentObject in self.componentIdentities:
-			if componentObject.name == materialName:
+			if componentObject.name.find(materialName) != -1:
 				return componentObject
 		return 0
+
+	def calculate_DoF(self): #this parent method should never be called, and is overwritten by each child class
+		pass
 
 	def __str__(self):
 		return self.name
@@ -173,6 +178,7 @@ class unit:
 class node(unit):
 	def __init__(self,name):
 		unit.__init__(self,name)
+		self.unknownDict = dict()
 		self.flowIn = int()
 		self.flowOut = int()
 		self.numberOfUnknownFlowRates = int()
@@ -212,17 +218,73 @@ class node(unit):
 			print("no outgoing streams")
 		print("\n")
 
-	def get_flow_in_out(self): #this *may* exhibit recursion issues since it calls the child method of the same name. I don' think it will but you can never be too sure
-		tempSystem = system("temp",self.i,self.o)
-		self.flowIn = tempSystem.flowIn
-		self.flowOut = tempSystem.flowOut
-		self.numberOfUnknownFlowRates = tempSystem.numberOfUnknownFlowRates
-		del tempSystem
+	# def get_flow_in_out(self): #this *may* exhibit recursion issues since it calls the child method of the same name. I don' think it will but you can never be too sure
+	# 	#really don't like this method, I'm going to rewrite it so that the parent node has the functinoality rather than calling its child. this is retarded.
+	# 	tempSystem = system("temp",self.i,self.o)
+	# 	self.flowIn = tempSystem.flowIn
+	# 	self.flowOut = tempSystem.flowOut
+	# 	self.numberOfUnknownFlowRates = tempSystem.numberOfUnknownFlowRates
+	# 	del tempSystem
+
+	def get_flow_in_out(self):
+		i = 0
+		o = 0
+		for streamObject in self.i:
+			if streamObject.flowRate is None:
+				continue
+			i += streamObject.flowRate
+		for streamObject in self.o:
+			if streamObject.flowRate is None:
+				continue
+			o += streamObject.flowRate
+		self.flowIn = i
+		self.flowOut = o
+
+	def calculate_DoF(self):
+		unknownTuple = self.get_unknown_values()
+		components = {
+			"flowRates" : unknownTuple[2],
+			"fractions" : unknownTuple[3]
+		}
+		self.unknownDict = {
+			"streams" : unknownTuple[1],
+			"components" : components
+		}
+		return unknownTuple[0] - self.get_possible_equations()
+
+	def get_unknown_values(self):
+		unknowns = 0
+		errorDict = {
+			"streamFlowRates" : list(),
+			"componentFlowRates" : list(),
+			"componentFractions" : list()
+		}
+		for streamObject in self.i:
+			unknownTuple = streamObject.get_unknown_values()
+			unknowns += unknownTuple[0]
+			if unknownTuple[1] is not None:
+				errorDict["streamFlowRates"].append(unknownTuple[1])
+			errorDict["componentFlowRates"].extend(unknownTuple[2])
+			errorDict["componentFractions"].extend(unknownTuple[3])
+		for streamObject in self.o:
+			unknownTuple = streamObject.get_unknown_values()
+			unknowns += unknownTuple[0]
+			if unknownTuple[1] is not None:
+				errorDict["streamFlowRates"].append(unknownTuple[1])
+			errorDict["componentFlowRates"].extend(unknownTuple[2])
+			errorDict["componentFractions"].extend(unknownTuple[3])
+		nodeTuple = (unknowns , errorDict["streamFlowRates"] , errorDict["componentFlowRates"] , errorDict["componentFractions"])
+		return nodeTuple
+
+
+	def get_possible_equations(self):
+		pass
 ##############################################################################################################################################################
 ################################################################################################################################################################
 class mixer(node):
 	def __init__(self,name):
 		node.__init__(self,name)
+		self.subTypeOfUnit = "mixer"
 
 ##############################################################################################################################################################
 ################################################################################################################################################################
@@ -307,6 +369,27 @@ class system(node):
 			checkedList.append(entry)
 		return degreeOfSeparation
 
+	def get_unknown_values(self):
+		unknowns = 0
+		errorDict = {
+			"streamFlowRates": set(),
+			"componentFlowRates": set(),
+			"componentFractions": set()
+		}
+		for unitObject in self.contents:
+			if unitObject.typeOfUnit == "node":
+				unknownTuple = unitObject.get_unknown_values()
+				unknowns += unknownTuple[0]
+				errorDict["streamFlowRates"].update(unknownTuple[1])
+				errorDict["componentFlowRates"].update(unknownTuple[2])
+				errorDict["componentFractions"].update(unknownTuple[3])
+
+		#just gonna try this
+		unknowns = len(errorDict["streamFlowRates"]) + len(errorDict["componentFlowRates"]) + len(errorDict["componentFractions"])
+
+		systemTuple = (unknowns , errorDict["streamFlowRates"] , errorDict["componentFlowRates"] , errorDict["componentFractions"])
+		return systemTuple
+
 	def force_overall_balance(self,iterand,interval,lowerBound,upperBound,tolerance):
 		if self.numberOfUnknownFlowRates >= 2:
 			print("It is not recommended to use this iterative strategy with more than one unknown")
@@ -332,23 +415,6 @@ class system(node):
 		self.get_flow_in_out()
 		return abs(pow(self.flowIn,2)-pow(self.flowOut,2))
 
-	def get_flow_in_out(self,guess = 0):
-		errorCount = 0
-		i = 0
-		o = 0
-		for streamObject in self.i:
-			if streamObject.flowRate == "unknown":
-				streamObject.flowRate = guess
-				errorCount += 1
-			i += streamObject.flowRate
-		for streamObject in self.o:
-			if streamObject.flowRate == "unknown":
-				streamObject.flowRate = guess
-				errorCount += 1
-			o += streamObject.flowRate
-		self.flowIn = i
-		self.flowOut = o
-		self.numberOfUnknownFlowRates = errorCount
 ##############################################################################################################################################################
 ################################################################################################################################################################
 class stream(unit):
@@ -372,6 +438,29 @@ class stream(unit):
 		print(self.name + " going to " + str(self.t))
 		print(self.name + " coming from " + str(self.f))
 		print("\n")
+
+	def get_unknown_values(self): #WIPWIPWIPWIPWIPWIP
+		unknowns = 0
+		errorDict = {
+			"streamFlowRate" : None,
+			"componentFlowRates" : list(),
+			"componentFractions" : list()
+		}
+		if self.flowRate is None:
+			errorDict["streamFlowRate"] = self
+			unknowns += 1
+		for componentObject in self.componentIdentities:
+			unknownTuple = componentObject.get_unknown_values()
+			print("components: " + componentObject.name + str(unknownTuple))
+			unknowns += unknownTuple[0]
+			if unknownTuple[1] is not None:
+				errorDict["componentFlowRates"].append(unknownTuple[1])
+			if unknownTuple[2] is not None:
+				errorDict["componentFractions"].append(unknownTuple[2])
+		streamTuple = (unknowns, errorDict["streamFlowRate"], errorDict["componentFlowRates"] , errorDict["componentFractions"])
+		print("streamTuple: " + str(streamTuple))
+		return streamTuple
+
 #############################################################################################################################################################
 ###############################################################################################################################################################
 class material: #will define a material and it's typical physical/chemical properties
@@ -393,7 +482,6 @@ class component: #will be a specific representation of a material per unit
 		self.pressUnits = str()
 
 		self.material = materialObject
-		materialRegistry.remove(self)
 		self.fractionType = None
 		self.fractionValue = None
 		self.flowRate = None
@@ -410,6 +498,22 @@ class component: #will be a specific representation of a material per unit
 		self.tempUnits = parentUnit.tempUnits
 		self.pressure = parentUnit.pressure
 		self.pressUnits = parentUnit.pressUnits
+
+	def get_unknown_values(self):
+		unknowns = 0
+		errorDict = {
+			"flowRate" : None,
+			"fraction" : None
+		}
+		if self.flowRate is None:
+			unknowns += 1
+			errorDict["flowRate"] = self
+		if self.fractionValue is None:
+			unknowns += 1
+			errorDict["fraction"] = self
+		componentTuple = (unknowns,errorDict["flowRate"],errorDict["fraction"])
+		return componentTuple
+
 #############################################################################################################################################################
 ###############################################################################################################################################################
 def print_unitRegistry():
@@ -446,5 +550,4 @@ def detect_unconnected_units():
 	else:
 		return 1,unitList
 
-def make_bulk_units(unitObjects, number):
-	pass
+

@@ -2,6 +2,8 @@ import units
 import sys
 
 def main():
+	mat1 = units.material("water",18.02)
+	mat2 = units.material("ethanol",46.0) #or something I don't remember
 	n01 = units.node("node_01")
 	n02 = units.node("node_02")
 	n02a = units.node("node_02a")
@@ -98,4 +100,117 @@ def testMain():
 	overall = units.system("overall")
 	print(overall.contents)
 
-main()
+
+def smol_main():
+	mat1 = units.material("water", 18.02)
+	mat2 = units.material("ethanol", 46.0)  # or something I don't remember
+	n01 = units.node("n01")
+	n01.specify_component_fractions(["water","ethanol"],"mass",[0.25,0.75])
+	n01.specify_component_flow_rates(["water","ethanol"],"mass",[400,1200])
+	n02 = units.node("n02")
+	s01 = units.stream("s01")
+	s02 = units.stream("s02")
+	s03 = units.stream("s03")
+
+	n01.specify_connections([s01],[s02])
+	n02.specify_connections([s02],[s03])
+
+	units.make_all_connections()
+
+	for thing in n01.componentIdentities:
+		print(thing.name + "_" + str(thing.fractionValue) + "_" + str(thing.flowRate))
+	print(type(n01))
+
+def DoF_test():
+	mat1 = units.material("A",20)
+	mat2 = units.material("B",45)
+	n01 = units.node("n01")
+	s01 = units.stream("s01")
+	s02 = units.stream("s02")
+
+	n01.specify_connections([s01],[s02])
+	units.make_all_connections()
+	units.print_all_connections()
+
+	s01.specify_component_fractions(["A","B"],"mass",[None,0.40]) #will have to see how passing "None" will work :/
+	s02.specify_component_fractions(["A","B"],"mass",[0.80,None])
+	s01.flowRate = 500
+	s02.flowRate = None
+
+	sys01 = units.system("overall")
+	tuple = sys01.get_unknown_values()
+	print(tuple[0])
+	dictKey = ["stream flow rates","component flow rates","component fractions"]
+	print(s01.componentIdentities[1].flowRate)
+	for i in range(1,4):
+		print(dictKey[i-1])
+		for thing in tuple[i]:
+			print(thing.name)
+
+def DoF_test_two():
+	mat1 = units.material("A", 20)
+	mat2 = units.material("B", 45)
+	mat3 = units.material("C",50)
+	mat4 = units.material("D", 15)
+
+	n01 = units.node("n01")
+	n02 = units.node("n02")
+	n03 = units.node("n03")
+	n04 = units.node("n04")
+	n05 = units.node("n05")
+
+	s01 = units.stream("stream_01")
+	s02 = units.stream("stream_02")
+	s03 = units.stream("stream_03")
+	s09 = units.stream("stream_09")
+	s04 = units.stream("stream_04")
+	s10 = units.stream("stream_10")
+	s05 = units.stream("stream_05")
+	s06 = units.stream("stream_06")
+	s07 = units.stream("stream_07")
+	s08 = units.stream("stream_08")
+
+	n01.specify_connections([s01,s02],[s03,s04])
+	n02.specify_connections([s03,s05],[s06])
+	n03.specify_connections([s06],[s08,s09])
+	n04.specify_connections([s04],[s07])
+	n05.specify_connections([s09],[s10])
+	units.make_all_connections()
+	units.print_all_connections()
+
+	#I think None should be explicitly defined, but I will have to look into this because I'd rather not have to do that.
+	s01.specify_component_fractions([],"mass",[1.0,0,0,0])
+	s02.specify_component_fractions([],"mass",[0,1.0,0,0])
+	s03.specify_component_fractions([],"mass",[0.25,0.75,0,0])
+	s04.specify_component_fractions([],"mass",[0.75,0.25,0,0])
+	s05.specify_component_fractions([],"mass",[0,0,1.0,0])
+	s06.specify_component_fractions(["A","B","C","D"],"mass",[None,None,None,None])
+	s07.specify_component_fractions([],"mass",[None,None,0,0])
+	s08.specify_component_fractions([],"mass",[0.2,0.2,0.6,0])
+	s09.specify_component_fractions([],"mass",[None,None,None,None])
+	s10.specify_component_fractions([],"mass",[None,None,None,None])
+	s01.flowRate = 500
+	s02.flowRate = 500
+	s03.flowRate = 100
+	s06.flowRate = 100
+	s10.flowRate = 100
+
+	sys01 = units.system("overall")
+	print("sys01 in")
+	for thing in sys01.i:
+		print("\t" + thing.name)
+	print("sys01 out")
+	for thing in sys01.o:
+		print("\t" + thing.name)
+	print("contents")
+	for thing in sys01.contents:
+		print("\t" + thing.name)
+	tuple = sys01.get_unknown_values()
+	dictKey = ["stream flow rates", "component flow rates", "component fractions"]
+	for i in range(1,4):
+		print(dictKey[i-1])
+		for thing in tuple[i]:
+			print(thing.name)
+	print(tuple[0])
+
+DoF_test_two()
