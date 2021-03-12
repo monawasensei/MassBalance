@@ -1,3 +1,4 @@
 *.idea/
 *.txt
 *.cpython38.pyc
+__pycache__/*
