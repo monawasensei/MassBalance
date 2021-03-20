@@ -54,6 +54,8 @@ unitConversionDict = {
 class unit:
 	def __init__(self,name,flowRate = None, flowType = "mass", flowUnits = "kg/hr", temperature = 25, tempUnits = "C", pressure = 1, pressUnits = "atm"):
 		self.componentIdentities = list()
+		self.typeOfUnit = "base" #should be overwritten by any other child class
+		self.subTypeOfUnit = None
 		self.name = name
 		self.flowType = flowType
 		self.flowRate = flowRate
@@ -95,7 +97,7 @@ class unit:
 
 		index = len(downstreamUnitList)
 
-		if isinstance(self, node):
+		if self.typeOfUnit == "node":
 			if len(self.o) != 0:
 				for streamUnit in self.o:
 					if streamUnit not in downstreamUnitList:
@@ -103,13 +105,13 @@ class unit:
 					else:
 						continue
 				for subunit in downstreamUnitList[index:]:
-					if isinstance(self, stream):
+					if subunit.typeOfUnit == "stream":
 						subunit.get_downstream_units(downstreamUnitList)
 					else:
 						continue
 			else:
 				return []
-		elif isinstance(self, stream):
+		elif self.typeOfUnit == "stream":
 			if self.t is not None:
 				if self.t not in downstreamUnitList:
 					downstreamUnitList.append(self.t)
@@ -130,7 +132,7 @@ class unit:
 
 		index = len(upstreamUnitList)
 
-		if isinstance(self, node):
+		if self.typeOfUnit == "node":
 			if len(self.i) != 0:
 				for streamUnit in self.i:
 					if streamUnit not in upstreamUnitList:
@@ -138,13 +140,13 @@ class unit:
 					else:
 						continue
 				for subunit in upstreamUnitList[index:]:
-					if isinstance(self, stream):
+					if subunit.typeOfUnit == "stream":
 						subunit.get_upstream_units(upstreamUnitList)
 					else:
 						continue
 			else:
 				return []
-		elif isinstance(self, stream):
+		elif self.typeOfUnit == "stream":
 			if self.f is not None:
 				if self.f not in upstreamUnitList:
 					upstreamUnitList.append(self.f)
@@ -176,6 +178,7 @@ class node(unit):
 		self.numberOfUnknownFlowRates = int()
 		self.i = list()
 		self.o = list()
+		self.typeOfUnit = "node"
 		unitRegistry["node"].append(self)
 
 	def unconditional_update(self): #unconditional update is called at the beginning of each method or function when a unit is being checked or having calculations run on it.
@@ -289,6 +292,7 @@ class node(unit):
 class mixer(node):
 	def __init__(self,name):
 		node.__init__(self,name)
+		self.subTypeOfUnit = "mixer"
 
 ##############################################################################################################################################################
 ################################################################################################################################################################
@@ -301,6 +305,7 @@ class system(node):
 		self.get_bounds(i,o)
 		self.get_contents()
 		self.get_flow_in_out()
+		self.typeOfUnit = "system"
 		unitRegistry["node"].remove(self)
 
 	def get_bounds(self,i,o): #need to add handling for if either i OR o are == None
@@ -380,7 +385,7 @@ class system(node):
 			"componentFractions": set()
 		}
 		for unitObject in self.contents:
-			if isinstance(unitObject, node):
+			if unitObject.typeOfUnit == "node":
 				unknownTuple = unitObject.get_unknown_values()
 				unknowns += unknownTuple[0]
 				errorDict["streamFlowRates"].update(unknownTuple[1])
@@ -426,6 +431,7 @@ class stream(unit):
 		self.specify_component_identities()
 		self.t = None
 		self.f = None
+		self.typeOfUnit = "stream"
 		unitRegistry["stream"].append(self)
 
 	def make_connections(self):
