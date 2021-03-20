@@ -184,11 +184,11 @@ def DoF_test_two():
 	s03.specify_component_fractions([],"mass",[0.25,0.75,0,0])
 	s04.specify_component_fractions([],"mass",[0.75,0.25,0,0])
 	s05.specify_component_fractions([],"mass",[0,0,1.0,0])
-	s06.specify_component_fractions(["A","B","C","D"],"mass",[None,None,None,None])
-	s07.specify_component_fractions([],"mass",[None,None,0,0])
+	#s06.specify_component_fractions(["A","B","C","D"],"mass",[None,None,None,None])
+	s07.specify_component_fractions(["C","D"],"mass",[0,0])
 	s08.specify_component_fractions([],"mass",[0.2,0.2,0.6,0])
-	s09.specify_component_fractions([],"mass",[None,None,None,None])
-	s10.specify_component_fractions([],"mass",[None,None,None,None])
+	#s09.specify_component_fractions([],"mass",[None,None,None,None])
+	#s10.specify_component_fractions([],"mass",[None,None,None,None])
 	s01.flowRate = 500
 	s02.flowRate = 500
 	s03.flowRate = 100
@@ -213,4 +213,20 @@ def DoF_test_two():
 			print(thing.name)
 	print(tuple[0])
 
-DoF_test_two()
+def type_test():
+	n01 = units.node("n01")
+	m01 = units.mixer("m01")
+	print(type(n01))
+	print(type(m01))
+	print(g_o_t_t(m01))
+
+def g_o_t_t(obj):
+	if isinstance(obj,units.node):
+		if isinstance(obj,units.mixer):
+			return "mixer"
+		else:
+			return "node"
+	else:
+		return None
+
+type_test()

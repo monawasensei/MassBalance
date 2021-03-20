@@ -1,4 +1,4 @@
-
+import math
 
 global nodeRegistry
 nodeRegistry = list()
@@ -11,6 +11,44 @@ unitRegistry = {
 	}
 global materialRegistry
 materialRegistry = list()
+
+global unitConversionDict
+global massUnitConversionDict
+massUnitConversionDict = {
+	"kg" : 1,
+	"lb" : 0.45359,
+	"oz" : 0.028349375,
+	"ton" : 907.28 #regular ton, not short ton
+}
+global volumeUnitConversionDict
+volumeUnitConversionDict = dict()
+global moleUnitConversionDict
+moleUnitConversionDict = dict()
+global energyUnitConversionDict
+energyUnitConversionDict = dict()
+global pressureUnitConversionDict
+pressureUnitConversionDict = dict()
+global timeUnitConversionDict
+timeUnitConversionDict = {
+	"second" : 1,
+	"minute" : 60,
+	"hour" : 3600,
+	"day" : 86400,
+	"week" : 604800,
+	"op. year" : 2851200,
+	"year" : 31536000
+}
+unitConversionDict = {
+	"mass" : massUnitConversionDict,
+	"volume" : volumeUnitConversionDict,
+	"mole" : moleUnitConversionDict,
+	"energy" : energyUnitConversionDict,
+	"pressure" : pressureUnitConversionDict,
+	"time" : timeUnitConversionDict
+}
+
+# global exceptions
+# exceptions = list() #will be a list containing strings explaining errors
 ###############################################################################################################################################################
 ###############################################################################################################################################################
 class unit:
@@ -26,7 +64,10 @@ class unit:
 		self.tempUnits = tempUnits
 		self.pressure = pressure
 		self.pressUnits = pressUnits
-		self.specify_component_identities()
+		#self.specify_component_identities()
+
+	def unconditional_update(self):
+		pass
 
 	def delete(self):
 		if self in unitRegistry["node"]:
@@ -117,59 +158,11 @@ class unit:
 
 		return upstreamUnitList
 
-	def specify_component_identities(self):
-		if len(materialRegistry) == 0:
-			print("no materials specified for system")
-			return 0
-		for materialObject in materialRegistry:
-			newComponent = component(self, materialObject, self.name + "_" + materialObject.name)
-			self.componentIdentities.append(newComponent)
-
-	def specify_component_fractions(self, componentNameList, fractionType, componentFraction):
-		componentList = list() #initializing componentList
-		if len(componentNameList) == 0: #if no argument is returned for componentNameList, it is assumed that fractions are being specified for each component material in the system
-			componentList = self.componentIdentities
-		else:
-			for name in componentNameList:
-				componentObject = self.get_component_by_material_name(name) #get's components by their names that have been passed in componentNameList
-				componentList.append(componentObject)
-		if self.check_componentList_and_values(componentList,componentFraction) != 1: #checks to ensure that both arg lists are the same length
-			return 0
-		for componentObject in componentList: #now assigning fractions to specific components
-			componentObject.fractionType = fractionType #can be molar or mass fraction type
-			componentObject.fractionValue = componentFraction[componentList.index(componentObject)]
-
-	def specify_component_flow_rates(self,componentNameList,flowType,componentFlowRate):
-		if flowType is None:
-			flowType = self.flowType #self.flowType is "mass" by default
-		componentList = list()
-		if len(componentNameList) == 0:
-			componentList = self.componentIdentities
-		else:
-			for name in componentNameList:
-				componentObject = self.get_component_by_material_name(name)
-				componentList.append(componentObject)
-		if self.check_componentList_and_values(componentList,componentFlowRate) != 1:
-			return 0
-		for componentObject in componentList:
-			componentObject.flowType = flowType
-			componentObject.flowRate = componentFlowRate[componentList.index(componentObject)]
-
-	@staticmethod
-	def check_componentList_and_values(componentList, values):
-		if len(componentList) != len(values):
-			return 0
-		else:
-			return 1
-
-	def get_component_by_material_name(self,materialName): #this check is utterly retarded but I don't want to think of a better way for now
-		for componentObject in self.componentIdentities:
-			if componentObject.name.find(materialName) != -1:
-				return componentObject
-		return 0
-
 	def calculate_DoF(self): #this parent method should never be called, and is overwritten by each child class
 		pass
+
+	# def check_exceptions(self): #maybe look into making exceptions a new class idk
+	# 	pass
 
 	def __str__(self):
 		return self.name
@@ -181,11 +174,17 @@ class node(unit):
 		self.unknownDict = dict()
 		self.flowIn = int()
 		self.flowOut = int()
+		self.flowInOutContainsNone = 0  # this feels retarded to me
 		self.numberOfUnknownFlowRates = int()
 		self.i = list()
 		self.o = list()
 		self.typeOfUnit = "node"
 		unitRegistry["node"].append(self)
+
+	def unconditional_update(self): #unconditional update is called at the beginning of each method or function when a unit is being checked or having calculations run on it.
+		self.make_connections()
+		self.get_flow_in_out()
+		#self.calculate_DoF()
 
 	def specify_connections(self,i,o):
 		for streamUnit in i:
@@ -227,16 +226,20 @@ class node(unit):
 	# 	del tempSystem
 
 	def get_flow_in_out(self):
+		containsNone = 0
 		i = 0
 		o = 0
 		for streamObject in self.i:
 			if streamObject.flowRate is None:
+				containsNone = 1
 				continue
 			i += streamObject.flowRate
 		for streamObject in self.o:
 			if streamObject.flowRate is None:
+				containsNone = 1
 				continue
 			o += streamObject.flowRate
+		self.flowInOutContainsNone = containsNone
 		self.flowIn = i
 		self.flowOut = o
 
@@ -276,9 +279,14 @@ class node(unit):
 		nodeTuple = (unknowns , errorDict["streamFlowRates"] , errorDict["componentFlowRates"] , errorDict["componentFractions"])
 		return nodeTuple
 
-
 	def get_possible_equations(self):
 		pass
+
+	# def check_exceptions(self):
+	# 	unit.check_exceptions(self)
+	# 	if (self.flowIn != self.flowOut) and (self.flowInOutContainsNone != 1) and (self.flowType == "mass" or self.flowType == "mole"):
+	# 		#to raise this exception, flowIn != flowOut AND BOTH flowIn and flowOut have some value (ie not None)
+	# 		specify_exception("for flowType " + self.flowType + ", the value of flow in and out must be equal. Please re-specify the streams surrounding this node: " + self.name,"units.node.check_exceptions()")
 ##############################################################################################################################################################
 ################################################################################################################################################################
 class mixer(node):
@@ -420,6 +428,7 @@ class system(node):
 class stream(unit):
 	def __init__(self,name):
 		unit.__init__(self,name)
+		self.specify_component_identities()
 		self.t = None
 		self.f = None
 		self.typeOfUnit = "stream"
@@ -438,6 +447,57 @@ class stream(unit):
 		print(self.name + " going to " + str(self.t))
 		print(self.name + " coming from " + str(self.f))
 		print("\n")
+
+	def specify_component_identities(self):
+		if len(materialRegistry) == 0:
+			print("no materials specified for system")
+			return 0
+		for materialObject in materialRegistry:
+			newComponent = component(self, materialObject, self.name + "_" + materialObject.name)
+			self.componentIdentities.append(newComponent)
+
+	def specify_component_fractions(self, componentNameList, fractionType, componentFraction):
+		componentList = list() #initializing componentList
+		if len(componentNameList) == 0: #if no argument is returned for componentNameList, it is assumed that fractions are being specified for each component material in the system
+			componentList = self.componentIdentities
+		else:
+			for name in componentNameList:
+				componentObject = self.get_component_by_material_name(name) #get's components by their names that have been passed in componentNameList
+				componentList.append(componentObject)
+		if self.check_componentList_and_values(componentList,componentFraction) != 1: #checks to ensure that both arg lists are the same length
+			return 0
+		for componentObject in componentList: #now assigning fractions to specific components
+			componentObject.fractionType = fractionType #can be molar or mass fraction type
+			componentObject.fractionValue = componentFraction[componentList.index(componentObject)]
+
+	def specify_component_flow_rates(self,componentNameList,flowType,componentFlowRate):
+		if flowType is None:
+			flowType = self.flowType #self.flowType is "mass" by default
+		componentList = list()
+		if len(componentNameList) == 0:
+			componentList = self.componentIdentities
+		else:
+			for name in componentNameList:
+				componentObject = self.get_component_by_material_name(name)
+				componentList.append(componentObject)
+		if self.check_componentList_and_values(componentList,componentFlowRate) != 1:
+			return 0
+		for componentObject in componentList:
+			componentObject.flowType = flowType
+			componentObject.flowRate = componentFlowRate[componentList.index(componentObject)]
+
+	@staticmethod
+	def check_componentList_and_values(componentList, values):
+		if len(componentList) != len(values):
+			return 0
+		else:
+			return 1
+
+	def get_component_by_material_name(self,materialName): #this check is utterly retarded but I don't want to think of a better way for now
+		for componentObject in self.componentIdentities:
+			if componentObject.name.find(materialName) != -1:
+				return componentObject
+		return 0
 
 	def get_unknown_values(self): #WIPWIPWIPWIPWIPWIP
 		unknowns = 0
@@ -461,9 +521,15 @@ class stream(unit):
 		print("streamTuple: " + str(streamTuple))
 		return streamTuple
 
+	# def check_exceptions(self): #this method really sucks and I hate it!
+	# 	unit.check_exceptions(self)
+	# 	if (self.flowRate != self.f.flowRate or self.flowRate != self.t.flowRate) and (self.flowType == "mass" or self.flowType == "mole"):
+	# 		specify_exception("Overspecified information for: " + self.name + " between nodes: " + self.f.name + " and " + self.t.name + ". the mass flowRate must be the same between these units","units.stream")
+
+
 #############################################################################################################################################################
 ###############################################################################################################################################################
-class material: #will define a material and it's typical physical/chemical properties
+class material: #will define a material and its typical physical/chemical properties
 	def __init__(self,name,mw):
 		self.name = name
 		self.mw = mw
@@ -550,4 +616,53 @@ def detect_unconnected_units():
 	else:
 		return 1,unitList
 
+# def specify_exception(message, methodName = None):
+# 	if methodName is None:
+# 		errorString = "Exception raised: " + message
+# 	else:
+# 		errorString = "Exception raised in method" + methodName + ": " + message
+# 	print(errorString)
+# 	exceptions.append(errorString)
+#
+# def print_exceptions():
+# 	if len(exceptions) != 0:
+# 		for message in exceptions:
+# 			print(message)
 
+def convert_unit(fromUnitStr,toUnitStr):
+	fromUnit = parse_unit_string(fromUnitStr)
+	toUnit = parse_unit_string(toUnitStr)
+
+
+def parse_unit_string(string):
+	unitTuple = tuple()
+	if string.find("/") == -1:
+		unitTuple = (string,)
+	elif string.find("/") != -1:
+		numerator = string[0:string.find("/")]
+		denominator = string[string.find("/") + 1 :]
+		unitTuple = (numerator,denominator)
+	return unitTuple
+
+def get_unit_conversion_type(baseUnit):
+	pass
+
+def get_type(obj):
+	if isinstance(obj, node): #parent class then children in a nested if-elif
+		if isinstance(obj, mixer):
+			return "mixer"
+		elif isinstance(obj, system):
+			return "system"
+		return "node"
+
+	elif isinstance(obj, stream):
+		return "stream"
+
+	elif isinstance(obj, component):
+		return "component"
+
+	elif isinstance(obj,material):
+		return "material"
+
+	else:
+		return None
